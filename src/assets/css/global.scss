@@ -1,0 +1,155 @@
+/*common style*/
+
+.button-common {
+  position: relative;
+  display: inline-block;
+  height: 2rem;
+  text-align: center;
+  vertical-align: middle;
+  cursor: pointer;
+  white-space: nowrap;
+  text-decoration: none;
+  font-size: (7 / 8) + rem;
+  padding: 0 11px;
+  line-height: (30 / 16) + rem;
+  font-weight: 500;
+  border-radius: .25rem;
+  transition: all 0.2s ease-in-out;
+}
+
+/*margin and padding*/
+
+.mr-10 {
+  margin-right: (10 / 16) + rem;
+}
+
+.mr-8 {
+  margin-right: .5rem;
+}
+
+.mt-8 {
+  margin-top: .5rem;
+}
+
+.mr-auto {
+  margin: 0 auto;
+}
+
+.pd-12-9 {
+  padding: .75rem (9 / 16) + rem;
+}
+
+/* flex */
+.flex {
+  display: flex;
+}
+
+.flex-align {
+  display: flex;
+  align-items: center;
+}
+
+.flex-align-sb {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.flex-align-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/*color*/
+@each $name, $color in (3, #333), (6, #666), (9, #999), (0, #000), (f, #fff), (c, #ccc), (red, #ff7372) {
+  .c-#{'' + $name} {
+    color: #{$color};
+  }
+}
+
+/* bg color */
+@each $name, $color in (fff, #fff), (6, #666), (9, #999), (0, #000), (f, #fff) {
+  .bgc-#{$name} {
+    background-color: #{$color};
+  }
+}
+
+/* text */
+@each $name in left, right, center {
+  .ta-#{$name} {
+    text-align: #{$name};
+  }
+}
+
+/*font-size*/
+@each $size in 12, 14, 16, 18, 20 {
+  .fs-#{$size} {
+    font-size: ($size / 16) + rem;
+  }
+}
+
+/*line-height*/
+.lh-1 {
+  line-height: 1;
+}
+
+.fw-7 {
+  font-weight: 700;
+}
+
+/*font-weight*/
+@each $size in 300, 400, 500, 600, 700 {
+  .fw-#{$size} {
+    font-weight: #{$size};
+  }
+}
+
+/*float*/
+.float-l {
+  float: left;
+}
+
+.float-r {
+  float: right;
+}
+
+/*position*/
+.relative {
+  position: relative;
+}
+
+.absolute {
+  position: absolute;
+}
+
+/*width and height*/
+
+.w-100 {
+  width: 100%;
+}
+
+.w-0 {
+  width: auto;
+}
+
+.h-100 {
+  height: 100%;
+}
+
+/*transition*/
+
+.ts {
+  transition: all .4s cubic-bezier(.4, 0, 0, 1);
+}
+
+/*border*/
+@each $po in left, right, top, bottom {
+  .b-#{$po} {
+    border-#{$po}: 1px solid #e9e9e9;
+  }
+}
+
+.b-1 {
+  border: 1px solid #e9e9e9;;
+}
