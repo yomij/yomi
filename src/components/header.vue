@@ -1,21 +1,22 @@
 <template>
- <header class="header flex-align">
+  <header class="header flex-align">
     <a class="title" href="/">YOMI</a>
     <nav class="flex-align-center fs">
       <div v-for="item of themeList" :key="item.value" class="nav-wrapper">
         <a :href="item.href">{{item.value}}</a>
       </div>
     </nav>
- </header>
+  </header>
 </template>
 
 <script lang="ts">
-  import { ref, defineComponent } from 'vue';
+  import {defineComponent, ref} from 'vue';
+
   export default defineComponent({
     name: 'Header',
     setup: () => {
       const count = ref(0);
-      return { count };
+      return {count};
     },
     data() {
       return {
@@ -33,26 +34,30 @@
   });
 </script>
 
-<style scoped lang="scss">
+<style lang="scss" scoped>
   header {
     padding: 2vw 4vw;
     cursor: default;
     user-select: none;
     color: var(--header-font-color);
     font-weight: 500;
+    
     a {
       color: var(--header-font-color);
       cursor: pointer;
     }
   }
+  
   .title {
     font-size: 2rem;
     margin-right: 3rem;
   }
+  
   nav {
     font-size: 1rem;
-
+    
   }
+  
   .nav-wrapper {
     margin-right: 1rem;
   }

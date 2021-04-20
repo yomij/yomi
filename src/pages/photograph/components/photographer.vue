@@ -1,12 +1,12 @@
 <template>
   <div class="as-photographer">
     {{listCount}}
-    <div class="photos-container" v-if="listCount">
+    <div v-if="listCount" class="photos-container">
       <Preview :img-ob="showImg" :screen-width="screenWidth"/>
       <div
-        ref="photolist"
-        :style="{width: 100.0 / listCount + '%'}"
-        class="photos" @click="lookBigPhoto($event, i - 1)"
+          ref="photolist"
+          :style="{width: 100.0 / listCount + '%'}"
+          class="photos" @click="lookBigPhoto($event, i - 1)"
       >
         <PhotoItem
             v-for="(img, index) in imgList"
@@ -29,7 +29,7 @@
   import Scroll from '../../../lib/Scroll.ts';
   import PhotoItem from './photo-item.vue';
   import Preview from './preview.vue';
-  import { defineComponent } from 'vue';
+  import {defineComponent} from 'vue';
   
   export default defineComponent({
     name: 'Photographer',
@@ -101,7 +101,7 @@
           this.getData();
         }
       });
-     
+      
       window.addEventListener('resize', () => {
         if (!this.timer) {
           this.timer = true;
@@ -122,11 +122,11 @@
     methods: {
       calculation() {
         // TODO 相对高度
-        const { listCount, imgList } = this;
+        const {listCount, imgList} = this;
         for (let i = 0; i < imgList.length; i++) {
           let item = imgList[i];
           if (item.offset[listCount - 1]) continue;
-          const top = imgList[i  - listCount];
+          const top = imgList[i - listCount];
           const left = i % listCount ? imgList[i % listCount - 1] : null;
           item.offset[listCount - 1] = {
             y: top ? top.offset[listCount - 1].y + item.height : 0,
@@ -156,7 +156,7 @@
           width: 750,
           thumbnail: '',
           offset: [],
-        },{
+        }, {
           smallUrl: 'https://images.unsplash.com/photo-1535626412646-58a028a96cde?ixlib=rb-0.3.5&s=cf5d6abe4bf8993853185aba4d0d2875&auto=format&fit=crop&w=334&q=80',
           height: 501,
           width: 334,
@@ -174,7 +174,7 @@
           width: 750,
           thumbnail: '',
           offset: [],
-        },{
+        }, {
           smallUrl: 'https://images.unsplash.com/photo-1535626412646-58a028a96cde?ixlib=rb-0.3.5&s=cf5d6abe4bf8993853185aba4d0d2875&auto=format&fit=crop&w=334&q=80',
           height: 501,
           width: 334,
@@ -192,7 +192,7 @@
           width: 750,
           thumbnail: '',
           offset: [],
-        },{
+        }, {
           smallUrl: 'https://images.unsplash.com/photo-1535626412646-58a028a96cde?ixlib=rb-0.3.5&s=cf5d6abe4bf8993853185aba4d0d2875&auto=format&fit=crop&w=334&q=80',
           height: 501,
           width: 334,
@@ -210,7 +210,7 @@
           width: 750,
           thumbnail: '',
           offset: [],
-        },{
+        }, {
           smallUrl: 'https://images.unsplash.com/photo-1535626412646-58a028a96cde?ixlib=rb-0.3.5&s=cf5d6abe4bf8993853185aba4d0d2875&auto=format&fit=crop&w=334&q=80',
           height: 501,
           width: 334,
@@ -260,7 +260,7 @@
               return;
             }
           }
-
+          
           this.biggestOffset = offset || 0;
           
         } else {
@@ -288,6 +288,7 @@
     
     .photos-container {
       margin: auto;
+      
       .photos {
         float: left;
         padding: 0 .25vw;

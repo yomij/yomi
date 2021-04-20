@@ -2,15 +2,15 @@ class Scroll {
   public listener: EventListener;
   private delayTime: number;
 
-  constructor (callback: Function, delayTime = 300) {
+  constructor(callback: Function, delayTime = 300) {
     this.listener = this.delay(callback);
     this.delayTime = delayTime;
     document.addEventListener('scroll', this.listener);
   }
 
-  delay (callback: Function) {
+  delay(callback: Function) {
     let timer = false;
-    const { delayTime } = this;
+    const {delayTime} = this;
     return function () {
       if (!timer) {
         timer = true;
@@ -26,7 +26,7 @@ class Scroll {
     };
   }
 
-  drop () {
+  drop() {
     document.removeEventListener('scroll', this.listener);
   }
 }
