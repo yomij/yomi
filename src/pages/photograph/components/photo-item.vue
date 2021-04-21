@@ -24,19 +24,14 @@
 </template>
 
 <script lang="ts">
-  import {defineComponent} from 'vue'
-
-  export type PhotoItem = {
-    smallUrl: string;
-    height: number;
-    width: number;
-  }
-
+  import {defineComponent, PropType} from 'vue'
+  import {Photo} from "../../../types/photo";
   export default defineComponent({
     name: 'PhotoItem',
     props: {
       imgOb: {
-        type: Object
+        type: Object as PropType<Photo>,
+        default: () => {}
       },
       standardWidth: {
         default: 0,
@@ -47,8 +42,8 @@
       }
     },
     created() {
-      this.height = this.standardWidth * (<PhotoItem>this.imgOb).height / (<PhotoItem>this.imgOb).width + 'px';
-      this.imgLoading(this.imgOb as PhotoItem);
+      this.height = this.standardWidth * this.imgOb.height / this.imgOb.width + 'px';
+      this.imgLoading(this.imgOb);
     },
     mounted() {
       this.offsetTop = (<HTMLElement>this.$refs.PhotoItemItem).offsetTop;
@@ -62,12 +57,12 @@
       }
     },
     methods: {
-      imgLoading(imgOb: PhotoItem) {
+      imgLoading(imgOb: Photo) {
         let imgUrl = new Image(),
           times = 0;
-        imgUrl.src = imgOb.smallUrl;
+        imgUrl.src = imgOb.mainUrl;
         if (imgUrl.complete) {
-          this.imgUrl = imgOb.smallUrl;
+          this.imgUrl = imgOb.mainUrl;
           this.height = 'auto'
         } else {
           imgUrl.onload = () => {
@@ -79,7 +74,7 @@
     },
     watch: {
       imgOb: {
-        handler: function (val: PhotoItem) {
+        handler: function (val: Photo) {
           this.imgLoading(val)
         },
         deep: true
@@ -94,16 +89,12 @@
     margin-bottom: .5vw;
     height: auto;
     position: relative;
-    
+    display: block;
     &.loading {
       width: 100%;
       background: #ddd;
     }
-    
-    .hover {
-    
-    }
-    
+
     .PhotoItem {
       cursor: zoom-in;
       width: 100%;
