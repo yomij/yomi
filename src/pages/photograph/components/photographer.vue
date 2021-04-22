@@ -1,36 +1,35 @@
 <template>
   <div class="as-photographer">
-    {{listCount}}
-    <div v-if="listCount" class="photos-container">
-      <Preview :img-ob="showImg" :screen-width="screenWidth"/>
-      <div
-          ref="photolist"
-          :style="{width: 100.0 / listCount + '%'}"
-          class="photos" @click="lookBigPhoto($event, i - 1)"
-      >
-        <PhotoItem
-            v-for="(img, index) in imgList"
-            :key="index"
-            :data-index='index'
-            :img-ob="img"
-            :standard-width="standardWidth"
-            :style="{
-              width: '400px',
-              position: 'absolute',
-              transform: img.offset[listCount - 1].text
-            }"
-        />
-      </div>
+    <div class="photos-container" ref="containerRef">
+      <Preview :img-ob="showImg" :screen-width="containerWidth"/>
+      <PhotoItem
+        class="absolute"
+        v-for="(img, index) in imgList"
+        :key="index"
+        :data-index='index'
+        :img-ob="img"
+        :standard-width="standardWidth"
+        :style="{
+          width: standardWidth + 'px',
+          transform: img.offset.transformText
+        }"
+      />
     </div>
   </div>
 </template>
 
-<script>
-  import Scroll from '../../../lib/Scroll.ts';
+<script lang="ts">
   import PhotoItem from './photo-item.vue';
   import Preview from './preview.vue';
-  import {defineComponent} from 'vue';
-  
+  import { defineComponent, ref } from 'vue';
+  import { Photo } from "../../../types/photo";
+  import { Scroll, Resize } from '../../../utils/event-handler';
+  import { getStyles, getElWidth } from "../../../utils/dom-handler";
+
+  const PHOTO_PADDING = 0.25; // 单位 vm
+  const TRIGGER_THRESHOLD = 200; // 单位 px
+  const MIN_GAP = 12; // 单位 px
+
   export default defineComponent({
     name: 'Photographer',
     components: {
@@ -39,240 +38,173 @@
     },
     data() {
       return {
-        screenWidth: 0,
-        listCount: 3,
-        timer: false,
-        lists: [],
-        showImg: {},
+        containerWidth: 0,
         standardWidth: 0,
         biggestOffset: 0,
-        imgList: [],
-        scroll: undefined,
-        MAX_COL: 3,
+        listCount: 0,
+        showImg: {} as Photo,
+        imgList: [] as Array<Photo>,
+        calculatedQuantity: 0,
       };
     },
-    watch: {
-      listCount() {
-        if (this.listCount === 1) {
-          this.lists = [this.imgList];
-          this.getBiggestOffset();
-          return;
-        }
-        let lists = [];
-        this.imgList.forEach((item, index) => {
-          let f = index % this.listCount;
-          if (typeof lists[f] === 'object') {
-            lists[f].push(item);
-          } else {
-            lists[f] = [item];
-          }
-        });
-        this.lists = lists;
-        this.getBiggestOffset();
-      },
-      imgList() {
-        if (this.listCount === 1) {
-          this.lists = [this.imgList];
-          this.getBiggestOffset();
-          return;
-        }
-        let lists = [];
-        this.imgList.forEach((item, index) => {
-          let f = index % this.listCount;
-          if (typeof lists[f] === 'object') {
-            lists[f].push(item);
-          } else {
-            lists[f] = [item];
-          }
-        });
-        this.lists = lists;
-        this.getBiggestOffset();
-      },
-      
+    setup() {
+      const containerRef = ref<any>(null);
+      return {
+        containerRef,
+      }
     },
     mounted() {
-      
-      this.screenWidth = document.documentElement.clientWidth;
-      this.listCount = this.getCount(this.screenWidth);
-      this.getData();
-      // 获取数据
-      this.scroll = new Scroll(e => {
-        if (e > this.biggestOffset - 200) {
+      this.init();
+      // 滚动事件监听会掉
+      Scroll.add((offset: number) => {
+        if (offset > this.biggestOffset - TRIGGER_THRESHOLD) {
           this.getData();
         }
       });
-      
-      window.addEventListener('resize', () => {
-        if (!this.timer) {
-          this.timer = true;
-          setTimeout(() => {
-            let screenWidth = document.documentElement.clientWidth;
-            this.screenWidth = screenWidth;
-            this.listCount = this.getCount(screenWidth);
-            this.timer = false;
-            this.getBiggestOffset();
-          }, 300);
-        }
+      // 屏幕大小变化监听
+      Resize.add(() => {
+        this.calculatedQuantity = 0;
+        this.containerWidth = this.getContainerWidth();
+        this.listCount = this.getCount();
+        this.getBiggestOffset();
+        this.calculation();
       });
     },
     unmounted() {
-      window.onresize = null;
-      this.scroll.drop();
+      Resize.drop();
+      Scroll.drop();
     },
     methods: {
+      init() {
+        this.containerWidth = this.getContainerWidth();
+        this.listCount = this.getCount();
+        this.getData();
+        this.calculation();
+      },
+      getContainerWidth() {
+        const containerRef = this.containerRef! as HTMLElement;
+        const styles = getStyles(containerRef);
+        return getElWidth(containerRef) - Number.parseFloat(styles.paddingLeft)  - Number.parseFloat(styles.paddingRight);
+      },
       calculation() {
-        // TODO 相对高度
         const {listCount, imgList} = this;
-        for (let i = 0; i < imgList.length; i++) {
+        // 计算标准宽度
+        const vw = Math.max(this.containerWidth / 100, MIN_GAP);
+        this.standardWidth = (this.getContainerWidth() - (listCount - 1) * PHOTO_PADDING * 2 * vw) / listCount;
+        for (let i = this.calculatedQuantity; i < imgList.length; i++) {
           let item = imgList[i];
-          if (item.offset[listCount - 1]) continue;
           const top = imgList[i - listCount];
           const left = i % listCount ? imgList[i % listCount - 1] : null;
-          item.offset[listCount - 1] = {
-            y: top ? top.offset[listCount - 1].y + item.height : 0,
-            x: left ? left.offset[listCount - 1].x + item.height : 0,
-            text: `matrix(1, 0, 0, 1, ${left ? left.offset[listCount - 1].x + item.height : 0}, ${top ? top.offset[listCount - 1].y + item.height : 0})`,
-            calculated: true,
+          const ratio = item.width / this.standardWidth
+          const x = (left && left.offset ? left.offset.x + this.standardWidth : 0) +
+                    PHOTO_PADDING * (left && left.offset ? 2 : 0) * vw;
+          const y = top && top.offset ? top.offset.y + top.height / top.offset.ratio +
+                    PHOTO_PADDING * 2 * vw : 0
+          item.offset = {
+            ratio, y, x,
+            transformText: `matrix(1, 0, 0, 1, ${x}, ${y})`,
           };
         }
-        console.log(imgList);
+        this.calculatedQuantity = imgList.length
       },
       getData() {
         this.imgList.push(...[{
-          smallUrl: 'https://images.unsplash.com/photo-1535626412646-58a028a96cde?ixlib=rb-0.3.5&s=cf5d6abe4bf8993853185aba4d0d2875&auto=format&fit=crop&w=334&q=80',
+          mainUrl: 'https://images.unsplash.com/photo-1535626412646-58a028a96cde?ixlib=rb-0.3.5&s=cf5d6abe4bf8993853185aba4d0d2875&auto=format&fit=crop&w=334&q=80',
           height: 501,
           width: 334,
           thumbnail: '',
-          offset: [],
         }, {
-          smallUrl: 'https://images.unsplash.com/photo-1534865244288-b47fca3a35e0?ixlib=rb-0.3.5&ixid=eyJhcHBfaWQiOjEyMDd9&s=a37ca6252a729bfa42706b52771382f2&auto=format&fit=crop&w=334&q=80',
+          mainUrl: 'https://images.unsplash.com/photo-1534865244288-b47fca3a35e0?ixlib=rb-0.3.5&ixid=eyJhcHBfaWQiOjEyMDd9&s=a37ca6252a729bfa42706b52771382f2&auto=format&fit=crop&w=334&q=80',
           height: 501,
           width: 334,
           thumbnail: '',
-          offset: [],
         }, {
-          smallUrl: 'https://images.unsplash.com/photo-1534941946572-23438b26af30?ixlib=rb-0.3.5&ixid=eyJhcHBfaWQiOjEyMDd9&s=2a39cbef202ec33200977e0d25e9f5e8&auto=format&fit=crop&w=750&q=80',
+          mainUrl: 'https://images.unsplash.com/photo-1534941946572-23438b26af30?ixlib=rb-0.3.5&ixid=eyJhcHBfaWQiOjEyMDd9&s=2a39cbef202ec33200977e0d25e9f5e8&auto=format&fit=crop&w=750&q=80',
           height: 500,
           width: 750,
           thumbnail: '',
-          offset: [],
         }, {
-          smallUrl: 'https://images.unsplash.com/photo-1535626412646-58a028a96cde?ixlib=rb-0.3.5&s=cf5d6abe4bf8993853185aba4d0d2875&auto=format&fit=crop&w=334&q=80',
+          mainUrl: 'https://images.unsplash.com/photo-1535626412646-58a028a96cde?ixlib=rb-0.3.5&s=cf5d6abe4bf8993853185aba4d0d2875&auto=format&fit=crop&w=334&q=80',
           height: 501,
           width: 334,
           thumbnail: '',
-          offset: [],
         }, {
-          smallUrl: 'https://images.unsplash.com/photo-1534865244288-b47fca3a35e0?ixlib=rb-0.3.5&ixid=eyJhcHBfaWQiOjEyMDd9&s=a37ca6252a729bfa42706b52771382f2&auto=format&fit=crop&w=334&q=80',
+          mainUrl: 'https://images.unsplash.com/photo-1534865244288-b47fca3a35e0?ixlib=rb-0.3.5&ixid=eyJhcHBfaWQiOjEyMDd9&s=a37ca6252a729bfa42706b52771382f2&auto=format&fit=crop&w=334&q=80',
           height: 501,
           width: 334,
           thumbnail: '',
-          offset: [],
         }, {
-          smallUrl: 'https://images.unsplash.com/photo-1534941946572-23438b26af30?ixlib=rb-0.3.5&ixid=eyJhcHBfaWQiOjEyMDd9&s=2a39cbef202ec33200977e0d25e9f5e8&auto=format&fit=crop&w=750&q=80',
+          mainUrl: 'https://images.unsplash.com/photo-1534941946572-23438b26af30?ixlib=rb-0.3.5&ixid=eyJhcHBfaWQiOjEyMDd9&s=2a39cbef202ec33200977e0d25e9f5e8&auto=format&fit=crop&w=750&q=80',
           height: 500,
           width: 750,
           thumbnail: '',
-          offset: [],
         }, {
-          smallUrl: 'https://images.unsplash.com/photo-1535626412646-58a028a96cde?ixlib=rb-0.3.5&s=cf5d6abe4bf8993853185aba4d0d2875&auto=format&fit=crop&w=334&q=80',
+          mainUrl: 'https://images.unsplash.com/photo-1535626412646-58a028a96cde?ixlib=rb-0.3.5&s=cf5d6abe4bf8993853185aba4d0d2875&auto=format&fit=crop&w=334&q=80',
           height: 501,
           width: 334,
           thumbnail: '',
-          offset: [],
         }, {
-          smallUrl: 'https://images.unsplash.com/photo-1534865244288-b47fca3a35e0?ixlib=rb-0.3.5&ixid=eyJhcHBfaWQiOjEyMDd9&s=a37ca6252a729bfa42706b52771382f2&auto=format&fit=crop&w=334&q=80',
+          mainUrl: 'https://images.unsplash.com/photo-1534865244288-b47fca3a35e0?ixlib=rb-0.3.5&ixid=eyJhcHBfaWQiOjEyMDd9&s=a37ca6252a729bfa42706b52771382f2&auto=format&fit=crop&w=334&q=80',
           height: 501,
           width: 334,
           thumbnail: '',
-          offset: [],
         }, {
-          smallUrl: 'https://images.unsplash.com/photo-1534941946572-23438b26af30?ixlib=rb-0.3.5&ixid=eyJhcHBfaWQiOjEyMDd9&s=2a39cbef202ec33200977e0d25e9f5e8&auto=format&fit=crop&w=750&q=80',
+          mainUrl: 'https://images.unsplash.com/photo-1534941946572-23438b26af30?ixlib=rb-0.3.5&ixid=eyJhcHBfaWQiOjEyMDd9&s=2a39cbef202ec33200977e0d25e9f5e8&auto=format&fit=crop&w=750&q=80',
           height: 500,
           width: 750,
           thumbnail: '',
-          offset: [],
         }, {
-          smallUrl: 'https://images.unsplash.com/photo-1535626412646-58a028a96cde?ixlib=rb-0.3.5&s=cf5d6abe4bf8993853185aba4d0d2875&auto=format&fit=crop&w=334&q=80',
+          mainUrl: 'https://images.unsplash.com/photo-1535626412646-58a028a96cde?ixlib=rb-0.3.5&s=cf5d6abe4bf8993853185aba4d0d2875&auto=format&fit=crop&w=334&q=80',
           height: 501,
           width: 334,
           thumbnail: '',
-          offset: [],
         }, {
-          smallUrl: 'https://images.unsplash.com/photo-1534865244288-b47fca3a35e0?ixlib=rb-0.3.5&ixid=eyJhcHBfaWQiOjEyMDd9&s=a37ca6252a729bfa42706b52771382f2&auto=format&fit=crop&w=334&q=80',
+          mainUrl: 'https://images.unsplash.com/photo-1534865244288-b47fca3a35e0?ixlib=rb-0.3.5&ixid=eyJhcHBfaWQiOjEyMDd9&s=a37ca6252a729bfa42706b52771382f2&auto=format&fit=crop&w=334&q=80',
           height: 501,
           width: 334,
           thumbnail: '',
-          offset: [],
         }, {
-          smallUrl: 'https://images.unsplash.com/photo-1534941946572-23438b26af30?ixlib=rb-0.3.5&ixid=eyJhcHBfaWQiOjEyMDd9&s=2a39cbef202ec33200977e0d25e9f5e8&auto=format&fit=crop&w=750&q=80',
+          mainUrl: 'https://images.unsplash.com/photo-1534941946572-23438b26af30?ixlib=rb-0.3.5&ixid=eyJhcHBfaWQiOjEyMDd9&s=2a39cbef202ec33200977e0d25e9f5e8&auto=format&fit=crop&w=750&q=80',
           height: 500,
           width: 750,
           thumbnail: '',
-          offset: [],
         }, {
-          smallUrl: 'https://images.unsplash.com/photo-1535626412646-58a028a96cde?ixlib=rb-0.3.5&s=cf5d6abe4bf8993853185aba4d0d2875&auto=format&fit=crop&w=334&q=80',
+          mainUrl: 'https://images.unsplash.com/photo-1535626412646-58a028a96cde?ixlib=rb-0.3.5&s=cf5d6abe4bf8993853185aba4d0d2875&auto=format&fit=crop&w=334&q=80',
           height: 501,
           width: 334,
           thumbnail: '',
-          offset: [],
         }, {
-          smallUrl: 'https://images.unsplash.com/photo-1534865244288-b47fca3a35e0?ixlib=rb-0.3.5&ixid=eyJhcHBfaWQiOjEyMDd9&s=a37ca6252a729bfa42706b52771382f2&auto=format&fit=crop&w=334&q=80',
+          mainUrl: 'https://images.unsplash.com/photo-1534865244288-b47fca3a35e0?ixlib=rb-0.3.5&ixid=eyJhcHBfaWQiOjEyMDd9&s=a37ca6252a729bfa42706b52771382f2&auto=format&fit=crop&w=334&q=80',
           height: 501,
           width: 334,
           thumbnail: '',
-          offset: [],
         }, {
-          smallUrl: 'https://images.unsplash.com/photo-1534941946572-23438b26af30?ixlib=rb-0.3.5&ixid=eyJhcHBfaWQiOjEyMDd9&s=2a39cbef202ec33200977e0d25e9f5e8&auto=format&fit=crop&w=750&q=80',
+          mainUrl: 'https://images.unsplash.com/photo-1534941946572-23438b26af30?ixlib=rb-0.3.5&ixid=eyJhcHBfaWQiOjEyMDd9&s=2a39cbef202ec33200977e0d25e9f5e8&auto=format&fit=crop&w=750&q=80',
           height: 500,
           width: 750,
           thumbnail: '',
-          offset: [],
         }]);
         this.calculation();
       },
-      getCount(screenWidth) {
-        if (screenWidth > 1320) {
-          this.standardWidth = (1320 / 3.0) - 24.0;
-          return 3;
-        }
-        if (screenWidth > 768) {
-          this.standardWidth = (screenWidth / 2.0) - 24.0;
-          return 2;
-        }
-        this.standardWidth = screenWidth - 24.0;
-        return 1;
+      getCount() {
+        // TODO finish this
+        return 3
       },
+      // 获取最下一张图片的偏移量
       getBiggestOffset() {
-        let list = this.$refs.photolist;
-        if (list && Array.from(list).filter(i => i).length === this.lists.length) {
-          let offset = Infinity;
-          for (let i = 0; i < this.lists.length; i++) {
-            let nodes = list[i].querySelectorAll('.photo-item');
-            if (nodes.length === this.lists[i].length) {
-              let node = nodes[nodes.length - 1];
-              let nowoffset = node.offsetTop + node.offsetHeight;
-              if (nowoffset < offset) {
-                offset = nowoffset;
-              }
-            } else {
-              setTimeout(this.getBiggestOffset, 300);
-              return;
-            }
-          }
-          
-          this.biggestOffset = offset || 0;
-          
-        } else {
-          setTimeout(this.getBiggestOffset, 300);
+        let { listCount, imgList } = this;
+        let biggestOffset = 0;
+        while (listCount) {
+          let photo = imgList[imgList.length - listCount--];
+          biggestOffset = Math.max(photo.offset!.y + photo.height, biggestOffset);
         }
+        return biggestOffset;
       },
-      lookBigPhoto(e, i) {
-        if (e.target.className === 'operation') {
-          let index = e.target.parentNode.dataset.index;
-          if (index >= 0) {
-            this.showImg = this.lists[i][index];
-          }
+      // TODO finish this
+      lookBigPhoto(e: Event, i: number) {
+        const target = e.target as HTMLElement;
+        if (target.className === 'operation') {
+          let index = Number((target.parentNode as HTMLElement).dataset.index);
         }
       },
     },
@@ -282,15 +214,12 @@
 <style lang="scss" scoped>
   .as-photographer {
     width: 100%;
-    padding: 4vw;
-    min-height: 100px;
+    padding: 3.75vw;
+    min-height: 10vw;
     overflow-y: auto;
-    
     .photos-container {
-      margin: auto;
-      
+      width: 100%;
       .photos {
-        float: left;
         padding: 0 .25vw;
       }
     }
