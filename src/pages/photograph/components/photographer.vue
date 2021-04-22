@@ -23,11 +23,12 @@
   import Preview from './preview.vue';
   import { defineComponent, ref } from 'vue';
   import { Photo } from "../../../types/photo";
-  import { Scroll, Resize } from '../../../lib/event-handler';
+  import { Scroll, Resize } from '../../../utils/event-handler';
+  import { getStyles, getElWidth } from "../../../utils/dom-handler";
 
   const PHOTO_PADDING = 0.25; // 单位 vm
   const TRIGGER_THRESHOLD = 200; // 单位 px
-  const MIN_GAP = 20; // 单位 px
+  const MIN_GAP = 12; // 单位 px
 
   export default defineComponent({
     name: 'Photographer',
@@ -82,21 +83,21 @@
       },
       getContainerWidth() {
         const containerRef = this.containerRef! as HTMLElement;
-        const styles = window.getComputedStyle(containerRef);
-        return containerRef.clientWidth - Number.parseFloat(styles.paddingLeft)  - Number.parseFloat(styles.paddingRight);
+        const styles = getStyles(containerRef);
+        return getElWidth(containerRef) - Number.parseFloat(styles.paddingLeft)  - Number.parseFloat(styles.paddingRight);
       },
       calculation() {
         const {listCount, imgList} = this;
         // 计算标准宽度
         const vw = Math.max(this.containerWidth / 100, MIN_GAP);
-        this.standardWidth = (this.containerWidth - listCount * PHOTO_PADDING * 2 * vw) / listCount;
+        this.standardWidth = (this.getContainerWidth() - (listCount - 1) * PHOTO_PADDING * 2 * vw) / listCount;
         for (let i = this.calculatedQuantity; i < imgList.length; i++) {
           let item = imgList[i];
           const top = imgList[i - listCount];
           const left = i % listCount ? imgList[i % listCount - 1] : null;
           const ratio = item.width / this.standardWidth
           const x = (left && left.offset ? left.offset.x + this.standardWidth : 0) +
-                    PHOTO_PADDING * (left && left.offset ? 2 : 1) * vw;
+                    PHOTO_PADDING * (left && left.offset ? 2 : 0) * vw;
           const y = top && top.offset ? top.offset.y + top.height / top.offset.ratio +
                     PHOTO_PADDING * 2 * vw : 0
           item.offset = {
@@ -186,7 +187,8 @@
         this.calculation();
       },
       getCount() {
-        return 1
+        // TODO finish this
+        return 3
       },
       // 获取最下一张图片的偏移量
       getBiggestOffset() {

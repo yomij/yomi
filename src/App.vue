@@ -1,15 +1,18 @@
 <template>
-  <Header/>
-  <RouterView/>
-  <router-link :to="{name: 'Photograph'}">
-    http://192.168.31.194:3000/photograph
-  </router-link>
+  <main>
+    <Header ref="headerRef"/>
+    <div :style="{paddingTop: height}">
+      <RouterView />
+    </div>
+  </main>
 </template>
 
 <script lang="ts">
-  import {defineComponent} from 'vue';
+  import {defineComponent, ref} from 'vue';
   import {RouterView} from 'vue-router';
   import Header from './components/header.vue';
+  import {getStyles} from "./utils/dom-handler";
+  import {Resize} from "./utils/event-handler";
 
   export default defineComponent({
     name: 'App',
@@ -17,9 +20,23 @@
       RouterView,
       Header,
     },
-    created(): void {
-      console.log();
+    data () {
+      return {
+        height: '',
+      }
     },
+    setup: () => {
+      const headerRef = ref<any>(null);
+      return {
+        headerRef,
+      }
+    },
+    mounted() {
+      this.height = this.headerRef.$el;
+      Resize.add(() => {
+        this.height =  getStyles(this.headerRef.$el).height;
+      });
+    }
   });
 </script>
 

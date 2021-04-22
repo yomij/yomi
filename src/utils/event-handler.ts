@@ -1,3 +1,5 @@
+import { getElWidth, getScrollTop } from "./dom-handler";
+
 class EventFactory {
   private listener: EventListener = () => undefined;
   // 是否添加监听事件
@@ -6,6 +8,7 @@ class EventFactory {
   private delayTime: number;
   private handler: Function;
   private cbs: Array<Function> = [];
+  private errorHandle: Function;
 
   readonly eventType: string;
 
@@ -14,23 +17,29 @@ class EventFactory {
     target: Element | Document | Window,
     handler: Function,
     delayTime = 300,
+    errorHandle: Function = (e: Error) => { throw e },
   ) {
     this.delayTime = delayTime;
     this.handler = handler.bind(null, this);
     this.eventType = event;
     this.target = target;
+    this.errorHandle = errorHandle;
   }
 
   delay() {
     let timer = false;
-    const {delayTime, handler, cbs} = this;
+    const {delayTime, handler, cbs, errorHandle} = this;
     return function () {
       if (!timer) {
         timer = true;
         setTimeout(() => {
           let data = handler();
           for (let cb of cbs) {
-            cb.call(null, data);
+            try {
+              cb.call(null, data);
+            } catch (e) {
+              errorHandle(e)
+            }
           }
           timer = false;
         }, delayTime);
@@ -68,5 +77,5 @@ class EventFactory {
   }
 }
 
-export const Scroll = new EventFactory('scroll', document, () => document.body.scrollTop + document.documentElement.scrollTop + window.innerHeight);
-export const Resize = new EventFactory('resize', window,() => document.documentElement.clientWidth);
+export const Scroll = new EventFactory('scroll', document, getScrollTop, 100);
+export const Resize = new EventFactory('resize', window, getElWidth.bind(null, document.documentElement), 100);

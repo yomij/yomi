@@ -37,9 +37,6 @@
         default: 0,
         type: Number
       },
-      textx: {
-        type: String
-      }
     },
     created() {
       this.height = this.standardWidth * this.imgOb.height / this.imgOb.width + 'px';
@@ -66,7 +63,7 @@
           this.height = 'auto'
         } else {
           imgUrl.onload = () => {
-            this.imgUrl = imgOb.smallUrl;
+            this.imgUrl = imgOb.mainUrl;
             this.height = 'auto'
           }
         }
@@ -88,7 +85,6 @@
     width: 100%;
     margin-bottom: .5vw;
     height: auto;
-    position: relative;
     display: block;
     &.loading {
       width: 100%;
