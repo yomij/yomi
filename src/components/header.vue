@@ -51,12 +51,12 @@
   }
   
   .title {
-    font-size: 2rem;
+    font-size: 1.3rem;
     margin-right: 3rem;
   }
   
   nav {
-    font-size: 1rem;
+    font-size: .8rem;
     
   }
   

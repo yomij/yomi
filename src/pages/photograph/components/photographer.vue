@@ -1,6 +1,6 @@
 <template>
-  <div class="as-photographer">
-    <div class="photos-container" ref="containerRef">
+  <div class="as-photographer" ref="containerRef">
+    <div class="photos-container">
       <Preview :img-ob="showImg" :screen-width="containerWidth"/>
       <PhotoItem
         class="absolute"
@@ -24,11 +24,9 @@
   import { defineComponent, ref } from 'vue';
   import { Photo } from "../../../types/photo";
   import { Scroll, Resize } from '../../../utils/event-handler';
-  import { getStyles, getElWidth } from "../../../utils/dom-handler";
-
-  const PHOTO_PADDING = 0.25; // 单位 vm
-  const TRIGGER_THRESHOLD = 200; // 单位 px
-  const MIN_GAP = 12; // 单位 px
+  import { getStyles, getElWidth, getWindowHeight } from "../../../utils/dom-handler";
+  import { decodeImage, encodeImageToBlurhash } from "../../../lib/blurhash-helper";
+  import { PHOTO_WATERFALL_STATIC } from '../../../config'
 
   export default defineComponent({
     name: 'Photographer',
@@ -57,16 +55,16 @@
       this.init();
       // 滚动事件监听会掉
       Scroll.add((offset: number) => {
-        if (offset > this.biggestOffset - TRIGGER_THRESHOLD) {
+        if (offset + getWindowHeight() > this.biggestOffset - PHOTO_WATERFALL_STATIC.TRIGGER_THRESHOLD) {
           this.getData();
         }
       });
       // 屏幕大小变化监听
       Resize.add(() => {
+        console.log(this)
         this.calculatedQuantity = 0;
         this.containerWidth = this.getContainerWidth();
         this.listCount = this.getCount();
-        this.getBiggestOffset();
         this.calculation();
       });
     },
@@ -84,106 +82,78 @@
       getContainerWidth() {
         const containerRef = this.containerRef! as HTMLElement;
         const styles = getStyles(containerRef);
+        console.log(getElWidth(containerRef), Number.parseFloat(styles.paddingLeft), Number.parseFloat(styles.paddingRight))
         return getElWidth(containerRef) - Number.parseFloat(styles.paddingLeft)  - Number.parseFloat(styles.paddingRight);
       },
       calculation() {
+        console.time('calculation')
         const {listCount, imgList} = this;
         // 计算标准宽度
-        const vw = Math.max(this.containerWidth / 100, MIN_GAP);
-        this.standardWidth = (this.getContainerWidth() - (listCount - 1) * PHOTO_PADDING * 2 * vw) / listCount;
+        const vw = this.containerWidth / 100;
+        const gap = Math.max(PHOTO_WATERFALL_STATIC.PHOTO_PADDING * vw, PHOTO_WATERFALL_STATIC.MIN_GAP);
+        this.standardWidth = (this.getContainerWidth() - (listCount - 1) * gap * 2) / listCount;
+        console.log(this.standardWidth, this.getContainerWidth())
         for (let i = this.calculatedQuantity; i < imgList.length; i++) {
           let item = imgList[i];
           const top = imgList[i - listCount];
           const left = i % listCount ? imgList[i % listCount - 1] : null;
           const ratio = item.width / this.standardWidth
           const x = (left && left.offset ? left.offset.x + this.standardWidth : 0) +
-                    PHOTO_PADDING * (left && left.offset ? 2 : 0) * vw;
-          const y = top && top.offset ? top.offset.y + top.height / top.offset.ratio +
-                    PHOTO_PADDING * 2 * vw : 0
+                    gap * (left && left.offset ? 2 : 0);
+          const y = top && top.offset ? top.offset.y + (top.displayHeight as number) +
+                    gap * 2 : 0;
+          item.displayHeight = item.height / ratio;
           item.offset = {
             ratio, y, x,
             transformText: `matrix(1, 0, 0, 1, ${x}, ${y})`,
           };
         }
         this.calculatedQuantity = imgList.length
+        this.$nextTick(this.getBiggestOffset)
+        console.timeEnd('calculation')
       },
-      getData() {
-        this.imgList.push(...[{
-          mainUrl: 'https://images.unsplash.com/photo-1535626412646-58a028a96cde?ixlib=rb-0.3.5&s=cf5d6abe4bf8993853185aba4d0d2875&auto=format&fit=crop&w=334&q=80',
+      async getData() {
+        const ex = [
+          'https://images.unsplash.com/photo-1534865244288-b47fca3a35e0?ixlib=rb-0.3.5&ixid=eyJhcHBfaWQiOjEyMDd9&s=a37ca6252a729bfa42706b52771382f2&auto=format&fit=crop&w=334&q=80',
+          'https://images.unsplash.com/photo-1535626412646-58a028a96cde?ixlib=rb-0.3.5&s=cf5d6abe4bf8993853185aba4d0d2875&auto=format&fit=crop&w=334&q=80',
+          'https://images.unsplash.com/photo-1534941946572-23438b26af30?ixlib=rb-0.3.5&ixid=eyJhcHBfaWQiOjEyMDd9&s=2a39cbef202ec33200977e0d25e9f5e8&auto=format&fit=crop&w=750&q=80',
+        ]
+
+        const decodeImageList = [
+          'W88g,3]$=v-Usmf6}?}@^jw]oJof~B=^$$xGj[WV+[={xFoLWqR*',
+          'W.L;HbRjIoWVWBWB~qWCs:ayWBj[Nxofs.oft7oLaJofR*ofofj@',
+          'WfHe:[IURjWXfQay_NM|xuWBWBfR4nWCxuj]ofayE1RjRjt7s:fk',
+        ]
+        console.time('decodeStart')
+        const data = [
+        {
+          mainUrl: ex[1],
           height: 501,
           width: 334,
-          thumbnail: '',
+          thumbnail: decodeImageList[1],
+          loaded: false,
+          preview: decodeImage(
+            decodeImageList[1],
+            PHOTO_WATERFALL_STATIC.BLUR_IMAGE_WIDTH,
+            Math.floor(501 / 334 * PHOTO_WATERFALL_STATIC.BLUR_IMAGE_WIDTH)
+          )
         }, {
-          mainUrl: 'https://images.unsplash.com/photo-1534865244288-b47fca3a35e0?ixlib=rb-0.3.5&ixid=eyJhcHBfaWQiOjEyMDd9&s=a37ca6252a729bfa42706b52771382f2&auto=format&fit=crop&w=334&q=80',
+          mainUrl: ex[0],
           height: 501,
           width: 334,
-          thumbnail: '',
+          thumbnail: decodeImageList[0],
+          loaded: false,
+          preview: decodeImage(decodeImageList[0], PHOTO_WATERFALL_STATIC.BLUR_IMAGE_WIDTH, Math.floor(501 / 334 * PHOTO_WATERFALL_STATIC.BLUR_IMAGE_WIDTH))
         }, {
-          mainUrl: 'https://images.unsplash.com/photo-1534941946572-23438b26af30?ixlib=rb-0.3.5&ixid=eyJhcHBfaWQiOjEyMDd9&s=2a39cbef202ec33200977e0d25e9f5e8&auto=format&fit=crop&w=750&q=80',
+          mainUrl: ex[2],
           height: 500,
           width: 750,
-          thumbnail: '',
-        }, {
-          mainUrl: 'https://images.unsplash.com/photo-1535626412646-58a028a96cde?ixlib=rb-0.3.5&s=cf5d6abe4bf8993853185aba4d0d2875&auto=format&fit=crop&w=334&q=80',
-          height: 501,
-          width: 334,
-          thumbnail: '',
-        }, {
-          mainUrl: 'https://images.unsplash.com/photo-1534865244288-b47fca3a35e0?ixlib=rb-0.3.5&ixid=eyJhcHBfaWQiOjEyMDd9&s=a37ca6252a729bfa42706b52771382f2&auto=format&fit=crop&w=334&q=80',
-          height: 501,
-          width: 334,
-          thumbnail: '',
-        }, {
-          mainUrl: 'https://images.unsplash.com/photo-1534941946572-23438b26af30?ixlib=rb-0.3.5&ixid=eyJhcHBfaWQiOjEyMDd9&s=2a39cbef202ec33200977e0d25e9f5e8&auto=format&fit=crop&w=750&q=80',
-          height: 500,
-          width: 750,
-          thumbnail: '',
-        }, {
-          mainUrl: 'https://images.unsplash.com/photo-1535626412646-58a028a96cde?ixlib=rb-0.3.5&s=cf5d6abe4bf8993853185aba4d0d2875&auto=format&fit=crop&w=334&q=80',
-          height: 501,
-          width: 334,
-          thumbnail: '',
-        }, {
-          mainUrl: 'https://images.unsplash.com/photo-1534865244288-b47fca3a35e0?ixlib=rb-0.3.5&ixid=eyJhcHBfaWQiOjEyMDd9&s=a37ca6252a729bfa42706b52771382f2&auto=format&fit=crop&w=334&q=80',
-          height: 501,
-          width: 334,
-          thumbnail: '',
-        }, {
-          mainUrl: 'https://images.unsplash.com/photo-1534941946572-23438b26af30?ixlib=rb-0.3.5&ixid=eyJhcHBfaWQiOjEyMDd9&s=2a39cbef202ec33200977e0d25e9f5e8&auto=format&fit=crop&w=750&q=80',
-          height: 500,
-          width: 750,
-          thumbnail: '',
-        }, {
-          mainUrl: 'https://images.unsplash.com/photo-1535626412646-58a028a96cde?ixlib=rb-0.3.5&s=cf5d6abe4bf8993853185aba4d0d2875&auto=format&fit=crop&w=334&q=80',
-          height: 501,
-          width: 334,
-          thumbnail: '',
-        }, {
-          mainUrl: 'https://images.unsplash.com/photo-1534865244288-b47fca3a35e0?ixlib=rb-0.3.5&ixid=eyJhcHBfaWQiOjEyMDd9&s=a37ca6252a729bfa42706b52771382f2&auto=format&fit=crop&w=334&q=80',
-          height: 501,
-          width: 334,
-          thumbnail: '',
-        }, {
-          mainUrl: 'https://images.unsplash.com/photo-1534941946572-23438b26af30?ixlib=rb-0.3.5&ixid=eyJhcHBfaWQiOjEyMDd9&s=2a39cbef202ec33200977e0d25e9f5e8&auto=format&fit=crop&w=750&q=80',
-          height: 500,
-          width: 750,
-          thumbnail: '',
-        }, {
-          mainUrl: 'https://images.unsplash.com/photo-1535626412646-58a028a96cde?ixlib=rb-0.3.5&s=cf5d6abe4bf8993853185aba4d0d2875&auto=format&fit=crop&w=334&q=80',
-          height: 501,
-          width: 334,
-          thumbnail: '',
-        }, {
-          mainUrl: 'https://images.unsplash.com/photo-1534865244288-b47fca3a35e0?ixlib=rb-0.3.5&ixid=eyJhcHBfaWQiOjEyMDd9&s=a37ca6252a729bfa42706b52771382f2&auto=format&fit=crop&w=334&q=80',
-          height: 501,
-          width: 334,
-          thumbnail: '',
-        }, {
-          mainUrl: 'https://images.unsplash.com/photo-1534941946572-23438b26af30?ixlib=rb-0.3.5&ixid=eyJhcHBfaWQiOjEyMDd9&s=2a39cbef202ec33200977e0d25e9f5e8&auto=format&fit=crop&w=750&q=80',
-          height: 500,
-          width: 750,
-          thumbnail: '',
-        }]);
+          loaded: false,
+          thumbnail: decodeImageList[2],
+          preview: decodeImage(decodeImageList[2], PHOTO_WATERFALL_STATIC.BLUR_IMAGE_WIDTH, Math.floor(500 / 750 * PHOTO_WATERFALL_STATIC.BLUR_IMAGE_WIDTH))
+        }];
+        console.timeEnd('decodeStart')
+        this.imgList.push(...data);
         this.calculation();
       },
       getCount() {
@@ -198,7 +168,7 @@
           let photo = imgList[imgList.length - listCount--];
           biggestOffset = Math.max(photo.offset!.y + photo.height, biggestOffset);
         }
-        return biggestOffset;
+        this.biggestOffset = biggestOffset;
       },
       // TODO finish this
       lookBigPhoto(e: Event, i: number) {

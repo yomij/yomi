@@ -1,6 +1,13 @@
 <template>
-  <div :class="{loading: !imgUrl}" :style="{height: height}" class="PhotoItem-item" ref="PhotoItemItem">
-    <img :src="imgUrl" @mouseenter="isShow = true" class="PhotoItem" v-show="imgUrl"/>
+  <div class="photo-main-item">
+    <Sketch
+      class="sketch"
+      :key="imgOb.thumbnail"
+      :standardWidth="standardWidth"
+      :imgOb="imgOb"
+      v-if="!imgUrl"
+    />
+    <img :src="imgUrl" @mouseenter="isShow = true" class="photo-item" v-else/>
     <div @mouseleave="isShow = false" class="operation" v-show="isShow">
       <a class="like button-common">
         <svg aria-hidden="false" class="heart-icon" height="32" version="1.1" viewBox="0 0 32 32" width="32">
@@ -26,8 +33,13 @@
 <script lang="ts">
   import {defineComponent, PropType} from 'vue'
   import {Photo} from "../../../types/photo";
+  import Sketch from './sketch.vue'
+
   export default defineComponent({
     name: 'PhotoItem',
+    components: {
+      Sketch,
+    },
     props: {
       imgOb: {
         type: Object as PropType<Photo>,
@@ -39,32 +51,23 @@
       },
     },
     created() {
-      this.height = this.standardWidth * this.imgOb.height / this.imgOb.width + 'px';
       this.imgLoading(this.imgOb);
-    },
-    mounted() {
-      this.offsetTop = (<HTMLElement>this.$refs.PhotoItemItem).offsetTop;
     },
     data() {
       return {
         imgUrl: '',
-        height: '0px',
         isShow: false,
-        offsetTop: 0,
       }
     },
     methods: {
       imgLoading(imgOb: Photo) {
-        let imgUrl = new Image(),
-          times = 0;
+        let imgUrl = new Image();
         imgUrl.src = imgOb.mainUrl;
         if (imgUrl.complete) {
           this.imgUrl = imgOb.mainUrl;
-          this.height = 'auto'
         } else {
           imgUrl.onload = () => {
             this.imgUrl = imgOb.mainUrl;
-            this.height = 'auto'
           }
         }
       }
@@ -81,20 +84,23 @@
 </script>
 
 <style lang="scss" scoped>
-  .PhotoItem-item {
+  .photo-main-item {
     width: 100%;
     margin-bottom: .5vw;
     height: auto;
     display: block;
-    &.loading {
+    .sketch {
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 12;
       width: 100%;
-      background: #ddd;
+      height: auto;
     }
 
-    .PhotoItem {
+    .photo-item {
       cursor: zoom-in;
       width: 100%;
-      margin-bottom: .5vw;
     }
     
     .operation {
