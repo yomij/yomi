@@ -7,5 +7,9 @@ export function getElWidth(el: HTMLElement) {
 }
 
 export function getScrollTop() {
- return document.body.scrollTop + document.documentElement.scrollTop + window.innerHeight;
+ return document.body.scrollTop + document.documentElement.scrollTop;
+}
+
+export function getWindowHeight() {
+ return window.innerHeight
 }

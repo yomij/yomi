@@ -11,4 +11,7 @@ export type Photo = {
   mainUrl: string,
   thumbnail: string,
   offset?: PhotoStyle,
+  loaded: boolean,
+  preview?: Uint8ClampedArray,
+  displayHeight?: number,
 }
