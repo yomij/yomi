@@ -2,18 +2,21 @@
   <div class="as-photographer" ref="containerRef">
     <div class="photos-container">
       <Preview :img-ob="showImg" :screen-width="containerWidth"/>
+
       <PhotoItem
-        class="absolute"
-        v-for="(img, index) in imgList"
-        :key="index"
         :data-index='index'
         :img-ob="img"
+        :key="index"
         :standard-width="standardWidth"
         :style="{
           width: standardWidth + 'px',
-          transform: img.offset.transformText
+          transform: img.offset?.transformText,
+          marginTop: !img.join ? '40px' : 0,
         }"
+        class="absolute item"
+        v-for="(img, index) in imgList"
       />
+
     </div>
   </div>
 </template>
@@ -21,12 +24,13 @@
 <script lang="ts">
   import PhotoItem from './photo-item.vue';
   import Preview from './preview.vue';
-  import { defineComponent, ref } from 'vue';
-  import { Photo } from "../../../types/photo";
-  import { Scroll, Resize } from '../../../utils/event-handler';
-  import { getStyles, getElWidth, getWindowHeight } from "../../../utils/dom-handler";
-  import { decodeImage, encodeImageToBlurhash } from "../../../lib/blurhash-helper";
-  import { PHOTO_WATERFALL_STATIC } from '../../../config'
+  import {defineComponent, ref} from 'vue';
+  import {Photo} from "../../../types/photo";
+  import {Resize, Scroll} from '../../../utils/event-handler';
+  import ImgLoader from "../../../utils/img-loader";
+  import {getElWidth, getStyles, getWindowHeight} from "../../../utils/dom-handler";
+  import {decodeImage} from "../../../lib/blurhash-helper";
+  import {PHOTO_WATERFALL_STATIC} from '../../../config';
 
   export default defineComponent({
     name: 'Photographer',
@@ -55,17 +59,20 @@
       this.init();
       // 滚动事件监听会掉
       Scroll.add((offset: number) => {
-        if (offset + getWindowHeight() > this.biggestOffset - PHOTO_WATERFALL_STATIC.TRIGGER_THRESHOLD) {
-          this.getData();
+        const maxOffset = offset + getWindowHeight()
+        if (maxOffset > this.biggestOffset - PHOTO_WATERFALL_STATIC.TRIGGER_THRESHOLD) {
+          this.getData().then(() => this.calculation(offset, maxOffset));
+        } else {
+          this.calculation(offset, maxOffset);
         }
       });
       // 屏幕大小变化监听
       Resize.add(() => {
-        console.log(this)
         this.calculatedQuantity = 0;
-        this.containerWidth = this.getContainerWidth();
-        this.listCount = this.getCount();
-        this.calculation();
+        this.listCount = this.getCount(this.containerWidth = this.getContainerWidth());
+        const evt = document.createEvent('HTMLEvents');
+        evt.initEvent('scroll', true, false);
+        document.dispatchEvent(evt);
       });
     },
     unmounted() {
@@ -74,42 +81,68 @@
     },
     methods: {
       init() {
-        this.containerWidth = this.getContainerWidth();
-        this.listCount = this.getCount();
+        this.listCount = this.getCount(this.containerWidth = this.getContainerWidth());
         this.getData();
-        this.calculation();
+        this.calculation(0, getWindowHeight());
       },
       getContainerWidth() {
         const containerRef = this.containerRef! as HTMLElement;
         const styles = getStyles(containerRef);
-        console.log(getElWidth(containerRef), Number.parseFloat(styles.paddingLeft), Number.parseFloat(styles.paddingRight))
-        return getElWidth(containerRef) - Number.parseFloat(styles.paddingLeft)  - Number.parseFloat(styles.paddingRight);
+        return getElWidth(containerRef) - Number.parseFloat(styles.paddingLeft) - Number.parseFloat(styles.paddingRight);
       },
-      calculation() {
+      calculation(minOffset: number, maxOffset: number) {
         console.time('calculation')
         const {listCount, imgList} = this;
-        // 计算标准宽度
+        // 计算图片标准宽度
         const vw = this.containerWidth / 100;
         const gap = Math.max(PHOTO_WATERFALL_STATIC.PHOTO_PADDING * vw, PHOTO_WATERFALL_STATIC.MIN_GAP);
         this.standardWidth = (this.getContainerWidth() - (listCount - 1) * gap * 2) / listCount;
-        console.log(this.standardWidth, this.getContainerWidth())
+
+        // 图片可视范围
+        const containerOffsetTop = (this.containerRef! as HTMLElement).offsetTop;
+        minOffset -= containerOffsetTop;
+        maxOffset -= containerOffsetTop;
+        let visualList = []
+        let unJoinList: Photo[] = []
+        // 开始计算位置
         for (let i = this.calculatedQuantity; i < imgList.length; i++) {
           let item = imgList[i];
           const top = imgList[i - listCount];
           const left = i % listCount ? imgList[i % listCount - 1] : null;
           const ratio = item.width / this.standardWidth
           const x = (left && left.offset ? left.offset.x + this.standardWidth : 0) +
-                    gap * (left && left.offset ? 2 : 0);
-          const y = top && top.offset ? top.offset.y + (top.displayHeight as number) +
-                    gap * 2 : 0;
+            gap * (left && left.offset ? 2 : 0);
+          const y = top && top.offset
+            ? top.offset.y + (top.displayHeight as number) + gap * 2
+            : 0;
           item.displayHeight = item.height / ratio;
           item.offset = {
             ratio, y, x,
             transformText: `matrix(1, 0, 0, 1, ${x}, ${y})`,
           };
+
+          if (!item.join) unJoinList.push(item)
+
+          if (y + item.displayHeight > minOffset && y < maxOffset) {
+            if (!item.loader.loaded) visualList.push(item.loader)
+          }
         }
+
+        for (let i = 0; i < this.calculatedQuantity; i++) {
+          const item = imgList[i];
+          const y = item.offset!.y;
+          if (y + (item.displayHeight as number) > minOffset && y < maxOffset) {
+            if (!item.loader.loaded) visualList.push(item.loader)
+          }
+        }
+
+        ImgLoader.replaceLoaderMap(visualList)
+
         this.calculatedQuantity = imgList.length
-        this.$nextTick(this.getBiggestOffset)
+        this.$nextTick( () => {
+          this.getBiggestOffset()
+          unJoinList.map(item => item.join = true)
+        })
         console.timeEnd('calculation')
       },
       async getData() {
@@ -125,44 +158,53 @@
           'WfHe:[IURjWXfQay_NM|xuWBWBfR4nWCxuj]ofayE1RjRjt7s:fk',
         ]
         console.time('decodeStart')
-        const data = [
-        {
-          mainUrl: ex[1],
-          height: 501,
-          width: 334,
-          thumbnail: decodeImageList[1],
-          loaded: false,
-          preview: decodeImage(
-            decodeImageList[1],
-            PHOTO_WATERFALL_STATIC.BLUR_IMAGE_WIDTH,
-            Math.floor(501 / 334 * PHOTO_WATERFALL_STATIC.BLUR_IMAGE_WIDTH)
-          )
-        }, {
-          mainUrl: ex[0],
-          height: 501,
-          width: 334,
-          thumbnail: decodeImageList[0],
-          loaded: false,
-          preview: decodeImage(decodeImageList[0], PHOTO_WATERFALL_STATIC.BLUR_IMAGE_WIDTH, Math.floor(501 / 334 * PHOTO_WATERFALL_STATIC.BLUR_IMAGE_WIDTH))
-        }, {
-          mainUrl: ex[2],
-          height: 500,
-          width: 750,
-          loaded: false,
-          thumbnail: decodeImageList[2],
-          preview: decodeImage(decodeImageList[2], PHOTO_WATERFALL_STATIC.BLUR_IMAGE_WIDTH, Math.floor(500 / 750 * PHOTO_WATERFALL_STATIC.BLUR_IMAGE_WIDTH))
+        const data: Photo[] = [
+          {
+            mainUrl: ex[1],
+            height: 501,
+            width: 334,
+            thumbnail: decodeImageList[1],
+            preview: decodeImage(
+              decodeImageList[1],
+              PHOTO_WATERFALL_STATIC.BLUR_IMAGE_WIDTH,
+              Math.floor(501 / 334 * PHOTO_WATERFALL_STATIC.BLUR_IMAGE_WIDTH)
+            ),
+            loader: new ImgLoader(ex[1]),
+            join: false,
+          }, {
+            mainUrl: ex[0],
+            height: 501,
+            width: 334,
+            thumbnail: decodeImageList[0],
+            loader: new ImgLoader(ex[0]),
+            preview: decodeImage(decodeImageList[0], PHOTO_WATERFALL_STATIC.BLUR_IMAGE_WIDTH, Math.floor(501 / 334 * PHOTO_WATERFALL_STATIC.BLUR_IMAGE_WIDTH)),
+            join: false,
+          }, {
+            mainUrl: ex[2],
+            height: 500,
+            width: 750,
+            thumbnail: decodeImageList[2],
+            loader: new ImgLoader(ex[2]),
+            preview: decodeImage(decodeImageList[2], PHOTO_WATERFALL_STATIC.BLUR_IMAGE_WIDTH, Math.floor(500 / 750 * PHOTO_WATERFALL_STATIC.BLUR_IMAGE_WIDTH)),
+            join: false,
         }];
-        console.timeEnd('decodeStart')
+
         this.imgList.push(...data);
-        this.calculation();
       },
-      getCount() {
+      getCount(clientWidth: number) {
+        console.log(clientWidth)
         // TODO finish this
+        if (clientWidth < 700) {
+          return 1;
+        }
+        if (clientWidth < 1100) {
+          return 2;
+        }
         return 3
       },
       // 获取最下一张图片的偏移量
       getBiggestOffset() {
-        let { listCount, imgList } = this;
+        let {listCount, imgList} = this;
         let biggestOffset = 0;
         while (listCount) {
           let photo = imgList[imgList.length - listCount--];
@@ -182,15 +224,22 @@
 </script>
 
 <style lang="scss" scoped>
+
   .as-photographer {
     width: 100%;
     padding: 3.75vw;
     min-height: 10vw;
     overflow-y: auto;
+
     .photos-container {
       width: 100%;
+
       .photos {
         padding: 0 .25vw;
+      }
+
+      .item {
+        transition: margin-top .2s;
       }
     }
   }

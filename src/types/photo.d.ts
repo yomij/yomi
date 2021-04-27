@@ -1,3 +1,5 @@
+import ImgLoader from "../utils/img-loader";
+
 export type PhotoStyle = {
   x: number,
   y: number,
@@ -11,7 +13,8 @@ export type Photo = {
   mainUrl: string,
   thumbnail: string,
   offset?: PhotoStyle,
-  loaded: boolean,
   preview?: Uint8ClampedArray,
   displayHeight?: number,
+  loader: ImgLoader,
+  join: boolean,
 }

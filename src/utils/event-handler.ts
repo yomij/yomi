@@ -1,4 +1,5 @@
 import { getElWidth, getScrollTop } from "./dom-handler";
+import { PHOTO_WATERFALL_STATIC } from "../config";
 
 class EventFactory {
   private listener: EventListener = () => undefined;
@@ -77,5 +78,5 @@ class EventFactory {
   }
 }
 
-export const Scroll = new EventFactory('scroll', document, getScrollTop, 100);
-export const Resize = new EventFactory('resize', window, getElWidth.bind(null, document.documentElement), 100);
+export const Scroll = new EventFactory('scroll', document, getScrollTop, PHOTO_WATERFALL_STATIC.SCROLL_THROTTLE_TIME);
+export const Resize = new EventFactory('resize', window, getElWidth.bind(null, document.documentElement), PHOTO_WATERFALL_STATIC.RESIZE_THROTTLE_TIME);

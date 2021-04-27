@@ -5,9 +5,18 @@
       :key="imgOb.thumbnail"
       :standardWidth="standardWidth"
       :imgOb="imgOb"
-      v-if="!imgUrl"
+      :class="{
+        disappear: imgOb.loader.loaded
+      }"
     />
-    <img :src="imgUrl" @mouseenter="isShow = true" class="photo-item" v-else/>
+    <img
+      :src="imgOb.loader.loaded && imgOb.mainUrl"
+      @mouseenter="isShow = true"
+      class="photo-item"
+      :class="{
+        appear: imgOb.loader.loaded
+      }"
+    />
     <div @mouseleave="isShow = false" class="operation" v-show="isShow">
       <a class="like button-common">
         <svg aria-hidden="false" class="heart-icon" height="32" version="1.1" viewBox="0 0 32 32" width="32">
@@ -50,34 +59,9 @@
         type: Number
       },
     },
-    created() {
-      this.imgLoading(this.imgOb);
-    },
-    data() {
+    data () {
       return {
-        imgUrl: '',
         isShow: false,
-      }
-    },
-    methods: {
-      imgLoading(imgOb: Photo) {
-        let imgUrl = new Image();
-        imgUrl.src = imgOb.mainUrl;
-        if (imgUrl.complete) {
-          this.imgUrl = imgOb.mainUrl;
-        } else {
-          imgUrl.onload = () => {
-            this.imgUrl = imgOb.mainUrl;
-          }
-        }
-      }
-    },
-    watch: {
-      imgOb: {
-        handler: function (val: Photo) {
-          this.imgLoading(val)
-        },
-        deep: true
       }
     }
   })
@@ -96,11 +80,25 @@
       z-index: 12;
       width: 100%;
       height: auto;
+      transition: all .4s ease;
+      display: block;
+      opacity: 1;
+      &.disappear {
+        /*display: none;*/
+        opacity: 0;
+      }
     }
 
     .photo-item {
       cursor: zoom-in;
       width: 100%;
+      /*transition: all .3s ease;*/
+      /*display: none;*/
+      opacity: 0;
+      &.appear {
+        /*display: block;*/
+        opacity: 1;
+      }
     }
     
     .operation {
