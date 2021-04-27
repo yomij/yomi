@@ -15,5 +15,6 @@ export type Photo = {
   offset?: PhotoStyle,
   preview?: Uint8ClampedArray,
   displayHeight?: number,
-  loader: ImgLoader;
+  loader: ImgLoader,
+  join: boolean,
 }
