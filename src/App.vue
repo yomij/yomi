@@ -4,7 +4,8 @@
       ref="headerRef"
       class="header"
       :style="{
-        transform: `translateY(${scrollDir === ScrollEnum.DOWN ? '-100%' : 0})`
+        transform: `translateY(${scrollDir === ScrollEnum.DOWN && scrollTop > THRESHOLD ? '-100%' : 0})`,
+        boxShadow: scrollTop > 100 ? '0 2px 8px 0 rgb(16 7 104 / 7%)' : 'none',
       }"
     />
     <div :style="{paddingTop: height}">
@@ -14,11 +15,17 @@
 </template>
 
 <script lang="ts">
-  import {defineComponent, ref} from 'vue';
+  import {defineComponent, getCurrentInstance, ref} from 'vue';
   import {RouterView} from 'vue-router';
   import Header from './components/header.vue';
   import {getStyles} from "./utils/dom-handler";
   import {Resize, Scroll} from "./utils/event-handler";
+  import {useProvider} from "./lib/store";
+  import tagStore, {TagStore} from "./store/tagStore";
+  import request from "./request";
+  import OS from "./utils/os";
+  import {HEADER_STATIC} from './config'
+
 
   enum ScrollEnum {
     UP = 'up',
@@ -36,40 +43,43 @@
         height: '',
         scrollDir: '' as ScrollEnum,
         ScrollEnum,
+        scrollTop: 0,
       }
     },
     setup: () => {
       const headerRef = ref<any>(null);
-      return {
-        headerRef,
-      }
+      const [themeList, setThemeList] = useProvider(tagStore);
+      request.getTagByGroup<TagStore[]>({ params: { group: 'photograph' }})
+        .then((themeList) => setThemeList(themeList) )
+      return { headerRef, OS, THRESHOLD: HEADER_STATIC.THRESHOLD }
     },
     mounted() {
       this.styleHandler()
     },
     methods: {
       styleHandler() {
-        const THRESHOLD = 100
+
         // 计算header高度
-        this.height = getStyles(this.headerRef.$el).height;;
-        Resize.add(() => {
-          this.height = getStyles(this.headerRef.$el).height;
-        });
+        this.height = getStyles(this.headerRef.$el).height;
+        Resize.add(() => (this.height = getStyles(this.headerRef.$el).height));
         // 判断滚动方向
         let oldScrollTop = 0
         Scroll.add((scrollTop: number) => {
+          const diff = oldScrollTop - scrollTop
           if (
-            oldScrollTop - scrollTop > 0 &&
+            diff > 60 ||
+            diff > 0 &&
             scrollTop <= Number.parseFloat(this.height)
           ) {
             this.scrollDir = ScrollEnum.UP
           }
-          if (scrollTop - oldScrollTop > 0) {
+          if (diff < 0) {
             this.scrollDir = ScrollEnum.DOWN
-          } else if (oldScrollTop - scrollTop >= THRESHOLD && this.scrollDir === ScrollEnum.DOWN) {
+          } else if (diff >= this.THRESHOLD && this.scrollDir === ScrollEnum.DOWN) {
             this.scrollDir = ScrollEnum.UP
           }
           oldScrollTop = scrollTop
+          this.scrollTop = scrollTop
         });
       }
     }
@@ -79,7 +89,7 @@
 <style lang="scss">
   @import './assets/css/index.scss';
   @import "./assets/css/values.css";
-  
+
   @font-face {
     font-family: 'FCN';
     src: url('./assets/font/font-cn.ttf');
@@ -88,7 +98,7 @@
   body {
     overflow-y: scroll;
   }
-  
+
   #app {
     font-family: FCN, Avenir, Helvetica, Arial, sans-serif;
     -webkit-font-smoothing: antialiased;
@@ -99,6 +109,6 @@
   }
 
   .header {
-    transition: all .1s ease-in-out;
+    transition: all .3s ease-in-out;
   }
 </style>

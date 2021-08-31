@@ -8,3 +8,9 @@ export const PHOTO_WATERFALL_STATIC = {
     RESIZE_THROTTLE_TIME: 100, // ms
     IMAGE_LOAD_WAIT_TIME: 100, // ms
 }
+
+
+export const HEADER_STATIC = {
+    // 头部隐藏阈值
+    THRESHOLD: 100
+}

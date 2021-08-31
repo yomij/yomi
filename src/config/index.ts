@@ -1,4 +1,5 @@
-import { PHOTO_WATERFALL_STATIC } from './static'
+import { PHOTO_WATERFALL_STATIC, HEADER_STATIC } from './static'
 export {
   PHOTO_WATERFALL_STATIC,
+  HEADER_STATIC,
 }

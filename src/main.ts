@@ -3,6 +3,10 @@ import App from './App.vue';
 import router from './router';
 import './assets/css/global.scss';
 
-createApp(App)
+const app = createApp(App);
+
+app
   .use(router)
   .mount('#app');
+
+

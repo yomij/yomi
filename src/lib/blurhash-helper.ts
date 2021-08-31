@@ -24,7 +24,7 @@ const getImageData = (image: HTMLImageElement) => {
   return context.getImageData(0, 0, image.width, image.height);
 };
 
-export const encodeImageToBlurhash = async (imageUrl: string) => {
+export const encodeImageToBlurHash = async (imageUrl: string) => {
   const image = await loadImage(imageUrl) as HTMLImageElement;
   const imageData = getImageData(image);
   return encode(imageData.data, imageData.width, imageData.height, 4, 4);

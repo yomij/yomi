@@ -7,6 +7,8 @@ export default class ImgLoader {
 
   public loading: boolean = false;
 
+  public couldShow: boolean = false;
+
   public timer: number = 0;
 
   readonly delay: number;
@@ -37,8 +39,8 @@ export default class ImgLoader {
   load () {
     return new Promise(resolve => {
       if (this.loaded) return resolve(this.src);
-     let cb = () => {
-        this.loaded = true;
+      let cb = () => {
+        this.loaded = true
         this.loading = false;
         ImgLoader.loaderMap.delete(this.src);
         resolve(this.src);
@@ -53,14 +55,13 @@ export default class ImgLoader {
           imgUrl.onload = cb;
         }
       }, this.delay)
-      ImgLoader.loaderMap.set(this.src, this);
+      ImgLoader.loaderMap.set(this.timer, this);
     })
   }
 
   cancel () {
-    if (!this.loading || this.loaded) return;
-    window.clearTimeout(this.timer);
-    ImgLoader.loaderMap.delete(this.src);
+    this.timer && window.clearTimeout(this.timer);
+    ImgLoader.loaderMap.delete(this.timer);
     this.loading = false;
   }
 }

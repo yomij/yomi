@@ -1,22 +1,25 @@
 <template>
   <div class="as-photographer" ref="containerRef">
-    <div class="photos-container">
+    <div class="photos-container" :style="{height: containerHeight + 'px'}">
       <Preview :img-ob="showImg" :screen-width="containerWidth"/>
-
       <PhotoItem
         :data-index='index'
         :img-ob="img"
-        :key="index"
+        :key="img.url"
         :standard-width="standardWidth"
         :style="{
           width: standardWidth + 'px',
+          height: img.displayHeight + 'px',
           transform: img.offset?.transformText,
-          marginTop: !img.join ? '40px' : 0,
+          marginTop: !img.join ? '50px' : 0,
         }"
         class="absolute item"
+        :collectImgInstance="collector.bind(this, index)"
         v-for="(img, index) in imgList"
       />
-
+    </div>
+    <div class="no-more" v-if="!loading && isFinish">
+      木得了😯😯😯
     </div>
   </div>
 </template>
@@ -31,6 +34,11 @@
   import {getElWidth, getStyles, getWindowHeight} from "../../../utils/dom-handler";
   import {decodeImage} from "../../../lib/blurhash-helper";
   import {PHOTO_WATERFALL_STATIC} from '../../../config';
+  import api from '../../../request'
+  import emit from "../../../lib/emit";
+  import tagStore, {TagStore} from "../../../store/tagStore";
+  import {useInjector} from "../../../lib/store";
+  import useRef from "../../../lib/hooks/useRef";
 
   export default defineComponent({
     name: 'Photographer',
@@ -44,49 +52,98 @@
         standardWidth: 0,
         biggestOffset: 0,
         listCount: 0,
-        showImg: {} as Photo,
-        imgList: [] as Array<Photo>,
         calculatedQuantity: 0,
+        imgList: [] as Photo[],
+        lastRow: [] as Photo[],
+        showImg: {} as Photo,
+        tag: {} as TagStore,
+        visualList: [] as Photo[],
+
+        page: {
+          pageSize: 5,
+          pageNo: 1,
+        },
+        loading: false,
+        isFinish: false,
       };
     },
     setup() {
-      const containerRef = ref<any>(null);
+      const containerRef = ref<HTMLDivElement>();
+      const [themeList] = useInjector(tagStore);
+      const [imgElementList, setImageList] = useRef<HTMLImageElement[]>([]);
+
+      function collector(index: number, img: HTMLImageElement) {
+        imgElementList.value[index] = img
+        setImageList(imgElementList.value)
+      }
+
       return {
         containerRef,
+        themeList,
+        tag: themeList.value[0],
+        imgElementList,
+        collector,
+      }
+    },
+    watch: {
+      themeList(v) {
+        this.tag = v[0]
+        this.getData()
+      }
+    },
+    computed: {
+      containerHeight() {
+        // @ts-ignore
+        const data = this.lastRow.map((item: Photo) => item.offset!.y + item.displayHeight!)
+        return Math.max(...data)
       }
     },
     mounted() {
-      this.init();
-      // 滚动事件监听会掉
-      Scroll.add((offset: number) => {
+      this.init()
+      // 滚动事件监听
+      Scroll.add(async (offset: number) => {
+        if (!this.tag._id) return;
         const maxOffset = offset + getWindowHeight()
         if (maxOffset > this.biggestOffset - PHOTO_WATERFALL_STATIC.TRIGGER_THRESHOLD) {
-          this.getData().then(() => this.calculation(offset, maxOffset));
-        } else {
-          this.calculation(offset, maxOffset);
+          await this.getData()
         }
+        this.calculation(offset, maxOffset)
       });
       // 屏幕大小变化监听
       Resize.add(() => {
-        this.calculatedQuantity = 0;
-        this.listCount = this.getCount(this.containerWidth = this.getContainerWidth());
+        this.reset()
         const evt = document.createEvent('HTMLEvents');
         evt.initEvent('scroll', true, false);
         document.dispatchEvent(evt);
       });
+      // 切换标签
+      emit.on('tagChange', this.tagChange)
     },
     unmounted() {
       Resize.drop();
       Scroll.drop();
     },
     methods: {
-      init() {
+      reset() {
+        this.page = { ...this.page, pageNo: 1 };
+        this.lastRow = []
+        this.calculatedQuantity = 0;
         this.listCount = this.getCount(this.containerWidth = this.getContainerWidth());
-        this.getData();
+      },
+      async init() {
+        this.imgList = []
+        this.isFinish = false;
+        this.loading = false;
+        this.reset()
+        await this.getData()
         this.calculation(0, getWindowHeight());
       },
+      tagChange (item: TagStore) {
+        this.tag = item
+        this.init()
+      },
       getContainerWidth() {
-        const containerRef = this.containerRef! as HTMLElement;
+        const containerRef = this.containerRef!;
         const styles = getStyles(containerRef);
         return getElWidth(containerRef) - Number.parseFloat(styles.paddingLeft) - Number.parseFloat(styles.paddingRight);
       },
@@ -97,120 +154,104 @@
         const vw = this.containerWidth / 100;
         const gap = Math.max(PHOTO_WATERFALL_STATIC.PHOTO_PADDING * vw, PHOTO_WATERFALL_STATIC.MIN_GAP);
         this.standardWidth = (this.getContainerWidth() - (listCount - 1) * gap * 2) / listCount;
-
         // 图片可视范围
-        const containerOffsetTop = (this.containerRef! as HTMLElement).offsetTop;
+        const containerOffsetTop = this.containerRef!.offsetTop + Number.parseFloat(getStyles(this.containerRef!).paddingLeft);
         minOffset -= containerOffsetTop;
         maxOffset -= containerOffsetTop;
-        let visualList = []
-        let unJoinList: Photo[] = []
+        let visualList: Photo[] = []
         // 开始计算位置
         for (let i = this.calculatedQuantity; i < imgList.length; i++) {
           let item = imgList[i];
-          const top = imgList[i - listCount];
-          const left = i % listCount ? imgList[i % listCount - 1] : null;
+          const minOffsetIndex = this.getMinOffsetIndex()
+          const minOffsetItem = this.lastRow[minOffsetIndex]
+          if (this.lastRow.length < this.listCount) {
+            this.lastRow.push(item)
+          }
           const ratio = item.width / this.standardWidth
-          const x = (left && left.offset ? left.offset.x + this.standardWidth : 0) +
-            gap * (left && left.offset ? 2 : 0);
-          const y = top && top.offset
-            ? top.offset.y + (top.displayHeight as number) + gap * 2
+          const x = minOffsetItem && minOffsetItem.offset ? minOffsetItem.offset.x : (this.standardWidth + gap * 2) * minOffsetIndex;
+          const y = minOffsetItem && minOffsetItem.offset
+            ? minOffsetItem.offset.y + (minOffsetItem.displayHeight as number) + gap * 2
             : 0;
           item.displayHeight = item.height / ratio;
           item.offset = {
             ratio, y, x,
             transformText: `matrix(1, 0, 0, 1, ${x}, ${y})`,
           };
-
-          if (!item.join) unJoinList.push(item)
-
-          if (y + item.displayHeight > minOffset && y < maxOffset) {
-            if (!item.loader.loaded) visualList.push(item.loader)
+          this.lastRow[minOffsetIndex] = item
+          if (y + item.displayHeight < minOffset || y > maxOffset) {
+            // 可视区域外
+          } else if (!item.loader.loaded){
+            visualList.push(item)
           }
         }
 
+        // 获取可视范围內的图片，
         for (let i = 0; i < this.calculatedQuantity; i++) {
           const item = imgList[i];
           const y = item.offset!.y;
-          if (y + (item.displayHeight as number) > minOffset && y < maxOffset) {
-            if (!item.loader.loaded) visualList.push(item.loader)
+          if (y + item.displayHeight! < minOffset || y > maxOffset) {
+            // 可视区域外
+          } else if (!item.loader.loaded){
+            visualList.push(item)
           }
         }
-
-        ImgLoader.replaceLoaderMap(visualList)
-
+        ImgLoader.replaceLoaderMap(visualList.map(item => item.loader))
+        this.visualList = visualList;
         this.calculatedQuantity = imgList.length
-        this.$nextTick( () => {
-          this.getBiggestOffset()
-          unJoinList.map(item => item.join = true)
+        this.$nextTick(() => {
+          this.getMaxOffset()
+          visualList.map(item => item.join = true)
         })
         console.timeEnd('calculation')
       },
       async getData() {
-        const ex = [
-          'https://images.unsplash.com/photo-1534865244288-b47fca3a35e0?ixlib=rb-0.3.5&ixid=eyJhcHBfaWQiOjEyMDd9&s=a37ca6252a729bfa42706b52771382f2&auto=format&fit=crop&w=334&q=80',
-          'https://images.unsplash.com/photo-1535626412646-58a028a96cde?ixlib=rb-0.3.5&s=cf5d6abe4bf8993853185aba4d0d2875&auto=format&fit=crop&w=334&q=80',
-          'https://images.unsplash.com/photo-1534941946572-23438b26af30?ixlib=rb-0.3.5&ixid=eyJhcHBfaWQiOjEyMDd9&s=2a39cbef202ec33200977e0d25e9f5e8&auto=format&fit=crop&w=750&q=80',
-        ]
-
-        const decodeImageList = [
-          'W88g,3]$=v-Usmf6}?}@^jw]oJof~B=^$$xGj[WV+[={xFoLWqR*',
-          'W.L;HbRjIoWVWBWB~qWCs:ayWBj[Nxofs.oft7oLaJofR*ofofj@',
-          'WfHe:[IURjWXfQay_NM|xuWBWBfR4nWCxuj]ofayE1RjRjt7s:fk',
-        ]
-        console.time('decodeStart')
-        const data: Photo[] = [
+        if (this.loading || this.isFinish) { return }
+        this.loading = true
+        const remoteData = await api.getPhotographList<any>({
+          data: { ...this.page, tag: [this.tag._id] }
+        })
+        if (this.imgList.length >= remoteData.total) {
+          this.isFinish = true
+          this.loading = false
+          return
+        }
+        console.log(this.imgElementList, 111)
+        const data: Photo[] = remoteData.list.map((item: any) => (
           {
-            mainUrl: ex[1],
-            height: 501,
-            width: 334,
-            thumbnail: decodeImageList[1],
+            mainUrl: item.url + '-WEBP',
+            height: item.meta.height,
+            width: item.meta.width,
+            thumbnail: item.blurStr,
             preview: decodeImage(
-              decodeImageList[1],
+              item.blurStr,
               PHOTO_WATERFALL_STATIC.BLUR_IMAGE_WIDTH,
-              Math.floor(501 / 334 * PHOTO_WATERFALL_STATIC.BLUR_IMAGE_WIDTH)
+              Math.floor(item.meta.height / item.meta.width * PHOTO_WATERFALL_STATIC.BLUR_IMAGE_WIDTH)
             ),
-            loader: new ImgLoader(ex[1]),
+            loader: new ImgLoader(item.url + '-WEBP'),
             join: false,
-          }, {
-            mainUrl: ex[0],
-            height: 501,
-            width: 334,
-            thumbnail: decodeImageList[0],
-            loader: new ImgLoader(ex[0]),
-            preview: decodeImage(decodeImageList[0], PHOTO_WATERFALL_STATIC.BLUR_IMAGE_WIDTH, Math.floor(501 / 334 * PHOTO_WATERFALL_STATIC.BLUR_IMAGE_WIDTH)),
-            join: false,
-          }, {
-            mainUrl: ex[2],
-            height: 500,
-            width: 750,
-            thumbnail: decodeImageList[2],
-            loader: new ImgLoader(ex[2]),
-            preview: decodeImage(decodeImageList[2], PHOTO_WATERFALL_STATIC.BLUR_IMAGE_WIDTH, Math.floor(500 / 750 * PHOTO_WATERFALL_STATIC.BLUR_IMAGE_WIDTH)),
-            join: false,
-        }];
-
+          }
+        ))
         this.imgList.push(...data);
+        this.page.pageNo++;
+        this.loading = false
       },
       getCount(clientWidth: number) {
         console.log(clientWidth)
         // TODO finish this
-        if (clientWidth < 700) {
-          return 1;
-        }
-        if (clientWidth < 1100) {
-          return 2;
-        }
+        if (clientWidth < 700) { return 1; }
+        if (clientWidth < 1100) { return 2; }
         return 3
       },
       // 获取最下一张图片的偏移量
-      getBiggestOffset() {
-        let {listCount, imgList} = this;
-        let biggestOffset = 0;
-        while (listCount) {
-          let photo = imgList[imgList.length - listCount--];
-          biggestOffset = Math.max(photo.offset!.y + photo.height, biggestOffset);
-        }
-        this.biggestOffset = biggestOffset;
+      getMaxOffset() {
+        let { lastRow } = this;
+        this.biggestOffset = Math.max(...lastRow.map(item => (item.offset?.y || 0) + (item.displayHeight || 0)), this.biggestOffset);
+      },
+      getMinOffsetIndex() {
+        let {listCount, lastRow, lastRow: { length }} = this;
+        if (length < listCount || !length) { return length }
+        const list = lastRow.map(item => (item.offset?.y || 0) + item.displayHeight!)
+        return list.indexOf(Math.min(...list))
       },
       // TODO finish this
       lookBigPhoto(e: Event, i: number) {
@@ -233,14 +274,16 @@
 
     .photos-container {
       width: 100%;
-
       .photos {
         padding: 0 .25vw;
       }
 
       .item {
-        transition: margin-top .2s;
+        transition: margin-top .5s;
       }
+    }
+    .no-more {
+      margin-top: 10px;
     }
   }
 </style>

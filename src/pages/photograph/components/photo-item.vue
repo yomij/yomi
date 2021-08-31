@@ -5,17 +5,18 @@
       :key="imgOb.thumbnail"
       :standardWidth="standardWidth"
       :imgOb="imgOb"
+      @mouseenter="showInformation"
       :class="{
         disappear: imgOb.loader.loaded
       }"
     />
     <img
-      :src="imgOb.loader.loaded && imgOb.mainUrl"
-      @mouseenter="isShow = true"
+      :src="imgOb.loader.loaded ? imgOb.loader.src : ''"
       class="photo-item"
       :class="{
         appear: imgOb.loader.loaded
       }"
+      :ref="collectImgInstance"
     />
     <div @mouseleave="isShow = false" class="operation" v-show="isShow">
       <a class="like button-common">
@@ -58,10 +59,18 @@
         default: 0,
         type: Number
       },
+      collectImgInstance: {
+        type: Function
+      }
     },
     data () {
       return {
         isShow: false,
+      }
+    },
+    methods: {
+      showInformation() {
+
       }
     }
   })
@@ -80,7 +89,7 @@
       z-index: 12;
       width: 100%;
       height: auto;
-      transition: all .4s ease;
+      transition: all 1s ease-in-out;
       display: block;
       opacity: 1;
       &.disappear {
@@ -92,15 +101,13 @@
     .photo-item {
       cursor: zoom-in;
       width: 100%;
-      /*transition: all .3s ease;*/
-      /*display: none;*/
+      transition: all 1s ease;
       opacity: 0;
       &.appear {
-        /*display: block;*/
         opacity: 1;
       }
     }
-    
+
     .operation {
       width: 100%;
       height: 100%;
@@ -109,18 +116,18 @@
       cursor: zoom-in;
       padding: 20px;
       background-image: linear-gradient(180deg, rgba(0, 0, 0, .2) 0, transparent 40%, transparent 60%, rgba(0, 0, 0, .3));
-      
+      z-index: 30;
       .like {
         // width: 80px;
         float: right;
         background-color: hsla(0, 0%, 100%, .85);
         border: 1px solid transparent;
         box-shadow: 0 1px 1px rgba(0, 0, 0, .04);
-        
+
         &:hover {
           background-color: hsla(0, 0%, 100%, 1);
         }
-        
+
         .heart-icon {
           position: relative;
           top: -1px;
@@ -128,35 +135,35 @@
           fill: #f15151
         }
       }
-      
+
       .bottom-tip {
         position: absolute;
         bottom: 20px;
         width: calc(100% - 40px);
         line-height: 32px;
         box-sizing: border-box;
-        
+
         .PhotoItem-inf {
           color: hsla(0, 0%, 100%, .85);
           cursor: pointer;
           display: inline-block;;
-          
+
           &:hover {
             color: hsla(0, 0%, 100%, 1);
           }
         }
-        
+
         .download {
           float: right;
           color: hsla(0, 0%, 100%, .85);
           background-color: hsla(0, 0%, 100%, .85);
           border: 1px solid transparent;
           box-shadow: 0 1px 1px rgba(0, 0, 0, .04);
-          
+
           &:hover {
             background-color: hsla(0, 0%, 100%, 1);
           }
-          
+
           .download-icon {
             position: relative;
             top: -1px;
