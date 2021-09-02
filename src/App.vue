@@ -26,7 +26,6 @@
   import OS from "./utils/os";
   import {HEADER_STATIC} from './config'
 
-
   enum ScrollEnum {
     UP = 'up',
     DOWN = 'down',
